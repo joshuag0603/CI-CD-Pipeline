@@ -1,0 +1,47 @@
+name: Deploy To Render
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  ci:
+    name: Run Tests and Deploy (if main)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build App
+        run: npm run build
+
+      # Run unit tests (Vitest, Jest, etc.)
+      - name: Run Unit Tests
+        run: npm run test
+
+      # Deploy only when on main
+      - name: Deploy to Render (only for main)
+        if: github.ref == 'refs/heads/main'
+        env:
+          deploy_url: ${{ secrets.RENDER_MAIN_DEPLOY_HOOK_URL }}
+        run: |
+          echo "Triggering deployment on Render..."
+          curl "$deploy_url"
+
+      # Wait for Render deployment before running Cypress
+      - name: Wait for Render Deployment (only for main)
+        if: github.ref == 'refs/heads/main'
+        run: npx wait-on https://ci-cd-pipeline-vp09.onrender.com --timeout 120000
+
+      # Run Cypress tests against the deployed Render URL
+      - name: Run Cypress Tests (only for main)
+        if: github.ref == 'refs/heads/main'
+        run: npx cypress run --config baseUrl=https://ci-cd-pipeline-vp09.onrender.com --config pageLoadTimeout=60000
